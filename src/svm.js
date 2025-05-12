@@ -167,12 +167,12 @@ async function train(letters, SVMOptions, kernelOptions) {
 }
 
 function getFilePath() {
-  const dataDir = path.join(__dirname, '../models');
   return {
-    descriptors: `${dataDir}/ESC-v2.svm.descriptors`,
-    model: `${dataDir}/ESC-v2.svm.model`
+    descriptors: require.resolve('mrz-scan/models/ESC-v2.svm.descriptors'),
+    model: require.resolve('mrz-scan/models/ESC-v2.svm.model')
   };
 }
+
 
 function getKernel(options) {
   options = Object.assign({ type: 'linear' }, options);
