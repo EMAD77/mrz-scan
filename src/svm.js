@@ -195,18 +195,18 @@ async function train(letters, SVMOptions, kernelOptions) {
 }
 
 function getFilePath() {
-  // Use Vercel-specific path in production
+  // For Vercel production
   if (process.env.VERCEL) {
     return {
-      descriptors: '/var/task/static/mrz-models/ESC-v2.svm.descriptors',
-      model: '/var/task/static/mrz-models/ESC-v2.svm.model'
+      descriptors: '/var/task/.next/server/mrz-models/ESC-v2.svm.descriptors',
+      model: '/var/task/.next/server/mrz-models/ESC-v2.svm.model'
     };
   }
   
-  // Local development path
+  // For local development
   return {
-    descriptors: path.join(process.cwd(), 'public/mrz-models/ESC-v2.svm.descriptors'),
-    model: path.join(process.cwd(), 'public/mrz-models/ESC-v2.svm.model')
+    descriptors: path.join(process.cwd(), 'lib/mrz-models/ESC-v2.svm.descriptors'),
+    model: path.join(process.cwd(), 'lib/mrz-models/ESC-v2.svm.model')
   };
 }
 
