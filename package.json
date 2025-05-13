@@ -5,7 +5,18 @@
   "files": [
     "lib/",
     "models/",
-    "build/models/"
+    "build/models/",
+    "build/internal/",
+    "build/lib/",
+    "build/models/",
+    "build/util/",
+    "build/",
+    "fontData/12x12/mrz/",
+    "src/internal/",
+    "src/lib/",
+    "src/util/",
+    "src/",
+    "test/",
   ],
   "scripts": {
     "lint": "eslint --ignore-path .gitignore .",
