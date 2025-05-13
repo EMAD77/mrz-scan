@@ -16,6 +16,16 @@ const { readImages } = require('./util/readWrite');
 // Store global config that can be set by the user
 let modelPathsConfig = null;
 
+let externalModelPaths = null;
+
+/**
+ * Inject external model paths.
+ * @param {Object} models - Should have { descriptors, model } properties.
+ */
+function setModelPaths(models) {
+  externalModelPaths = models;
+}
+
 async function loadData(dir) {
     const data = await readImages(path.resolve(path.join(__dirname, '..'), dir));
 
@@ -44,24 +54,17 @@ async function loadData(dir) {
 }
 
 function extractHOG(image) {
-    image = image.scale({
-        width: 20,
-        height: 20
-    });
-    image = image.pad({
-        size: 2
-    });
-
-    let optionsHog = {
-        cellSize: 5,
-        blockSize: 2,
-        blockStride: 1,
-        bins: 4,
-        norm: 'L2'
-    };
-
-    let hogFeatures = hog.extractHOG(image, optionsHog);
-    return hogFeatures;
+  image = image.scale({ width: 20, height: 20 });
+  image = image.pad({ size: 2 });
+  let optionsHog = {
+    cellSize: 5,
+    blockSize: 2,
+    blockStride: 1,
+    bins: 4,
+    norm: 'L2'
+  };
+  let hogFeatures = hog.extractHOG(image, optionsHog);
+  return hogFeatures;
 }
 
 // Get descriptors for images from 1 identity card
@@ -197,77 +200,51 @@ async function train(letters, SVMOptions, kernelOptions) {
  * @param {string} paths.descriptors - Path to the descriptors file
  * @param {string} paths.model - Path to the model file
  */
-function setModelPaths(paths) {
-    if (!paths || typeof paths !== 'object') {
-        throw new Error('Model paths must be an object with descriptors and model properties');
-    }
+// function setModelPaths(paths) {
+//     if (!paths || typeof paths !== 'object') {
+//         throw new Error('Model paths must be an object with descriptors and model properties');
+//     }
     
-    if (!paths.descriptors || !paths.model) {
-        throw new Error('Both descriptors and model paths are required');
-    }
+//     if (!paths.descriptors || !paths.model) {
+//         throw new Error('Both descriptors and model paths are required');
+//     }
     
-    modelPathsConfig = {
-        descriptors: paths.descriptors,
-        model: paths.model
-    };
-}
+//     modelPathsConfig = {
+//         descriptors: paths.descriptors,
+//         model: paths.model
+//     };
+// }
 
-/**
- * Get file paths for SVM model files with fallback locations
- * Checks multiple possible locations in order of priority
- */
 function getFilePath() {
-    // Priority 0: User-defined paths (if set)
-    if (modelPathsConfig) {
-        return modelPathsConfig;
-    }
-    
-    // Output current working directory for debugging
-    console.log('Current working directory:', process.cwd());
-    
-    // Define all possible paths to check
-    const possiblePaths = [
-        // Priority 1: Vercel serverless paths
-        {
-            descriptors: '/var/task/.next/static/mrz-models/ESC-v2.svm.descriptors',
-            model: '/var/task/.next/static/mrz-models/ESC-v2.svm.model'
-        },
-        {
-            descriptors: '/var/task/static/mrz-models/ESC-v2.svm.descriptors',
-            model: '/var/task/static/mrz-models/ESC-v2.svm.model'
-        },
-        // Priority 2: Local Next.js paths
-        {
-            descriptors: path.join(process.cwd(), '.next/static/mrz-models/ESC-v2.svm.descriptors'),
-            model: path.join(process.cwd(), '.next/static/mrz-models/ESC-v2.svm.model')
-        },
-        // Priority 3: Public directory
-        {
-            descriptors: path.join(process.cwd(), 'public/mrz-models/ESC-v2.svm.descriptors'),
-            model: path.join(process.cwd(), 'public/mrz-models/ESC-v2.svm.model')
-        },
-        // Priority 4: Original package paths
-        {
-            descriptors: require.resolve('mrz-scan/models/ESC-v2.svm.descriptors'),
-            model: require.resolve('mrz-scan/models/ESC-v2.svm.model')
-        }
-    ];
+  // Use externally provided model paths if available.
+  if (
+    externalModelPaths &&
+    externalModelPaths.descriptors &&
+    externalModelPaths.model
+  ) {
+    return externalModelPaths;
+  }
 
-    // Check each path and return the first one where files exist
-    for (const pathOption of possiblePaths) {
-        try {
-            if (fs.existsSync(pathOption.descriptors) && fs.existsSync(pathOption.model)) {
-                console.log('Found model files at:', pathOption);
-                return pathOption;
-            }
-        } catch (err) {
-            // Ignore errors and try next path
-        }
-    }
+  // Check for production environment.
+  // (Your error shows the file is expected under "/var/task/static" in production.)
+  const prodPath = '/var/task/static/mrz-models';
+  if (fs.existsSync(path.join(prodPath, 'ESC-v2.svm.descriptors'))) {
+    return {
+      descriptors: path.join(prodPath, 'ESC-v2.svm.descriptors'),
+      model: path.join(prodPath, 'ESC-v2.svm.model')
+    };
+  }
 
-    // If no files found, log all attempted paths and use last option (will likely fail)
-    console.error('No model files found in any of these locations:', possiblePaths);
-    return possiblePaths[0];
+  // Fallback for local development — use the public folder.
+  const localPath = path.join(process.cwd(), 'public/mrz-models');
+  if (fs.existsSync(path.join(localPath, 'ESC-v2.svm.descriptors'))) {
+    return {
+      descriptors: path.join(localPath, 'ESC-v2.svm.descriptors'),
+      model: path.join(localPath, 'ESC-v2.svm.model')
+    };
+  }
+
+  throw new Error('MRZ model files not found in any expected locations');
 }
 
 function getKernel(options) {
