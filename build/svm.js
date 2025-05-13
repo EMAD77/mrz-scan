@@ -195,19 +195,25 @@ async function train(letters, SVMOptions, kernelOptions) {
 }
 
 function getFilePath() {
-  // For Vercel production
-  if (process.env.VERCEL) {
-    return {
-      descriptors: '/var/task/.next/static/mrz-models/ESC-v2.svm.descriptors',
-      model: '/var/task/.next/static/mrz-models/ESC-v2.svm.model'
-    };
+  // Try multiple possible locations
+  const possiblePaths = [
+    // Vercel production path
+    '/var/task/.next/static/mrz-models',
+    // Fallback paths
+    path.join(process.cwd(), '.next/static/mrz-models'),
+    path.join(__dirname, '../../public/mrz-models')
+  ];
+
+  for (const basePath of possiblePaths) {
+    const descriptors = path.join(basePath, 'ESC-v2.svm.descriptors');
+    const model = path.join(basePath, 'ESC-v2.svm.model');
+    
+    if (fs.existsSync(descriptors) && fs.existsSync(model)) {
+      return { descriptors, model };
+    }
   }
-  
-  // For local development
-  return {
-    descriptors: path.join(__dirname, '../../public/mrz-models/ESC-v2.svm.descriptors'),
-    model: path.join(__dirname, '../../public/mrz-models/ESC-v2.svm.model')
-  };
+
+  throw new Error('MRZ model files not found in any known locations');
 }
 
 
