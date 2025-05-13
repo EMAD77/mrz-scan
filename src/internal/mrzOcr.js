@@ -42,7 +42,8 @@ async function mrzOcr(image: typeof ImageClass): $FlowFixMe {
 
   const imagesToPredict = rois.map((roi) => roi.image);
 
-  let predicted = await predictImages(imagesToPredict);
+  //let predicted = await predictImages(imagesToPredict);
+  let predicted = await predictImages(imagesToPredict, options && options.modelPaths);
 
   predicted = predicted.map((p) => String.fromCharCode(p));
 
