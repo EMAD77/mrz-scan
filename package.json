@@ -2,6 +2,7 @@
   "name": "mrz-scan",
   "version": "1.2.0",
   "description": "Server side mrz (Machine Readable Zone) scanner.",
+  "main": "index.js",
   "files": [
     "lib/",
     "models/",
@@ -23,6 +24,10 @@
     "build": "babel src/ --out-dir build/",
     "start": "nodemon --exec \"yarn build && node ./test/index.js && echo \"Restarted!\" \" "
   },
+  "exports": {
+    ".": {
+      "require": "./index.js"
+    },
   "repository": {
     "type": "git",
     "url": "https://github.com/ProjectINT/mrz-scan"
