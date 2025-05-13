@@ -1,3 +1,4 @@
+// src/svm.js
 'use strict';
 const path = require('path');
 const fs = require('node:fs/promises');
@@ -10,14 +11,11 @@ const uniq = require('lodash.uniq');
 const BSON = require('bson');
 
 const SVM = require('libsvm-js/asm');
-// const SVMPromise = Promise.resolve(require('libsvm-js/asm'));
 const { readImages } = require('./util/readWrite');
 
 // ---------------------------------------------------------------------
-// NEW: Modify getFilePath to accept external paths
-// ---------------------------------------------------------------------
+// Modified: getFilePath now accepts "externalPaths"
 function getFilePath(externalPaths) {
-  // If an external paths object is provided with both keys, use it.
   if (
     externalPaths &&
     externalPaths.descriptors &&
@@ -28,7 +26,7 @@ function getFilePath(externalPaths) {
       model: externalPaths.model,
     };
   }
-  // Fall back to the default paths otherwise.
+  // Fallback to the previous default
   return {
     descriptors: require.resolve('mrz-scan/models/ESC-v2.svm.descriptors'),
     model: require.resolve('mrz-scan/models/ESC-v2.svm.model'),
@@ -36,31 +34,7 @@ function getFilePath(externalPaths) {
 }
 
 // ---------------------------------------------------------------------
-// Rest of your code remains mostly unchanged...
-// ---------------------------------------------------------------------
-
-async function loadData(dir) {
-  const data = await readImages(path.resolve(path.join(__dirname, '..'), dir));
-  for (let entry of data) {
-    let { image } = entry;
-    entry.descriptor = extractHOG(image);
-    entry.height = image.height;
-  }
-  const groupedData = groupBy(data, (d) => d.card);
-  for (let card in groupedData) {
-    const heights = groupedData[card].map((d) => d.height);
-    const maxHeight = Math.max.apply(null, heights);
-    const minHeight = Math.min.apply(null, heights);
-    for (let d of groupedData[card]) {
-      let bonusFeature = 1;
-      if (minHeight !== maxHeight) {
-        bonusFeature = (d.height - minHeight) / (maxHeight - minHeight);
-      }
-      d.descriptor.push(bonusFeature);
-    }
-  }
-  return data;
-}
+// (Unchanged) loadData, extractHOG, getDescriptors, etc.
 
 function extractHOG(image) {
   image = image.scale({ width: 20, height: 20 });
@@ -87,34 +61,24 @@ function getDescriptors(images) {
   const maxHeight = Math.max.apply(null, heights);
   const minHeight = Math.min.apply(null, heights);
   for (let i = 0; i < images.length; i++) {
-    const img = images[i];
     let bonusFeature = 1;
     if (minHeight !== maxHeight) {
-      bonusFeature = (img.height - minHeight) / (maxHeight - minHeight);
+      bonusFeature = (images[i].height - minHeight) / (maxHeight - minHeight);
     }
     result[i].push(bonusFeature);
   }
   return result;
 }
 
-function predictImages(images) {
+// ---------------------------------------------------------------------
+// Modified predictImages to accept externalPaths
+function predictImages(images, externalPaths) {
   const Xtest = getDescriptors(images);
-  // In the next line, we could optionally pass external model paths if needed.
-  // For now, we call applyModel with only one argument.
-  return applyModel(Xtest);
-}
-
-function predict(classifier, Xtrain, Xtest, kernelOptions) {
-  const kernel = getKernel(kernelOptions);
-  const Ktest = kernel
-    .compute(Xtest, Xtrain)
-    .addColumn(0, range(1, Xtest.length + 1));
-  return classifier.predict(Ktest);
+  return applyModel(Xtest, externalPaths);
 }
 
 // ---------------------------------------------------------------------
-// Modified: allow externalPaths to be passed to applyModel
-// ---------------------------------------------------------------------
+// Modified applyModel to accept externalPaths
 async function applyModel(Xtest, externalPaths) {
   const { descriptors: descriptorsPath, model: modelPath } =
     getFilePath(externalPaths);
@@ -128,10 +92,23 @@ async function applyModel(Xtest, externalPaths) {
   return prediction;
 }
 
+function predict(classifier, Xtrain, Xtest, kernelOptions) {
+  const kernel = getKernel(kernelOptions);
+  const Ktest = kernel
+    .compute(Xtest, Xtrain)
+    .addColumn(0, range(1, Xtest.length + 1));
+  return classifier.predict(Ktest);
+}
+
 // ---------------------------------------------------------------------
-// Modified: allow externalPaths to be passed to createModel
-// ---------------------------------------------------------------------
-async function createModel(letters, name, SVMOptions, kernelOptions, externalPaths) {
+// Modified createModel to accept externalPaths
+async function createModel(
+  letters,
+  name,
+  SVMOptions,
+  kernelOptions,
+  externalPaths
+) {
   const { descriptors: descriptorsPath, model: modelPath } =
     getFilePath(externalPaths);
   const { descriptors, classifier } = await train(
@@ -179,14 +156,13 @@ async function train(letters, SVMOptions, kernelOptions) {
       kernel: SVM.KERNEL_TYPES.PRECOMPUTED,
     });
   }
-  let oneClass = SVMOptions.type === SVM.SVM_TYPES.ONE_CLASS;
   var classifier = new SVM(SVMOptions);
   let kernel = getKernel(kernelOptions);
   const KData = kernel
     .compute(Xtrain)
     .addColumn(0, range(1, Ytrain.length + 1));
   classifier.train(KData, Ytrain);
-  return { classifier, descriptors: Xtrain, oneClass };
+  return { classifier, descriptors: Xtrain };
 }
 
 function getKernel(options) {
