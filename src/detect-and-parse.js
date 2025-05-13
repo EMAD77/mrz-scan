@@ -63,8 +63,8 @@ module.exports = async function detectAndParseMrz(buffer: Buffer, options?: ?Opt
     const mrz = await getMrz(await ImageClass.load(buffer));
     const imageDataUrl = mrz.toDataURL();
     const toImage = await ImageClass.load(imageDataUrl);
-    //var { ocrResult } = await mrzOcr(toImage);
-    var { ocrResult } = await mrzOcr(toImage, options);
+    var { ocrResult } = await mrzOcr(toImage);
+    //var { ocrResult } = await mrzOcr(toImage, options);
     const parsed = parse(ocrResult);
 
     const formattedResult = original ? parsed : {
