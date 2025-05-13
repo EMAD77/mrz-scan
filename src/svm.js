@@ -1,7 +1,8 @@
 'use strict';
 const path = require('path');
-const fs = require('fs'); // Sync/callback API
-const fsp = require('node:fs/promises'); // Promise API
+const fs = require('fs');
+const fsPromises = require('node:fs/promises');
+
 const groupBy = require('lodash.groupby');
 const hog = require('hog-features');
 const Kernel = require('ml-kernel');
@@ -11,6 +12,9 @@ const BSON = require('bson');
 
 const SVM = require('libsvm-js/asm');
 const { readImages } = require('./util/readWrite');
+
+// Store global config that can be set by the user
+let modelPathsConfig = null;
 
 async function loadData(dir) {
     const data = await readImages(path.resolve(path.join(__dirname, '..'), dir));
@@ -27,6 +31,8 @@ async function loadData(dir) {
         const maxHeight = Math.max.apply(null, heights);
         const minHeight = Math.min.apply(null, heights);
         for (let d of groupedData[card]) {
+            // This last descriptor is very important to differentiate numbers and letters
+            // Because with OCR-B font, numbers are slightly higher than numbers
             let bonusFeature = 1;
             if (minHeight !== maxHeight) {
                 bonusFeature = (d.height - minHeight) / (maxHeight - minHeight);
@@ -38,8 +44,13 @@ async function loadData(dir) {
 }
 
 function extractHOG(image) {
-    image = image.scale({ width: 20, height: 20 });
-    image = image.pad({ size: 2 });
+    image = image.scale({
+        width: 20,
+        height: 20
+    });
+    image = image.pad({
+        size: 2
+    });
 
     let optionsHog = {
         cellSize: 5,
@@ -53,6 +64,7 @@ function extractHOG(image) {
     return hogFeatures;
 }
 
+// Get descriptors for images from 1 identity card
 function getDescriptors(images) {
     const result = [];
     for (let image of images) {
@@ -89,15 +101,30 @@ function predict(classifier, Xtrain, Xtest, kernelOptions) {
 async function applyModel(Xtest) {
     const { descriptors: descriptorsPath, model: modelPath } = getFilePath();
 
-    const bson = new BSON();
-    const file = await fsp.readFile(descriptorsPath);
-    const { descriptors: Xtrain, kernelOptions } = bson.deserialize(file);
+    try {
+        const bson = new BSON();
+        const file = await fsPromises.readFile(descriptorsPath);
 
-    const model = await fsp.readFile(modelPath, { encoding: 'utf8' });
-    const classifier = await SVM.load(model);
+        const { descriptors: Xtrain, kernelOptions } = bson.deserialize(file);
 
-    const prediction = predict(classifier, Xtrain, Xtest, kernelOptions);
-    return prediction;
+        const model = await fsPromises.readFile(modelPath, {
+            encoding: 'utf8'
+        });
+        const classifier = await SVM.load(model);
+
+        const prediction = predict(classifier, Xtrain, Xtest, kernelOptions);
+
+        return prediction;
+    } catch (error) {
+        // Add more detailed error information
+        const errorInfo = `Error loading model files. Tried paths:
+        - descriptors: ${descriptorsPath}
+        - model: ${modelPath}
+        Original error: ${error.message}`;
+        
+        console.error(errorInfo);
+        throw new Error(errorInfo);
+    }
 }
 
 async function createModel(letters, name, SVMOptions, kernelOptions) {
@@ -106,8 +133,11 @@ async function createModel(letters, name, SVMOptions, kernelOptions) {
     const bson = new BSON();
 
     try {
-        await fsp.writeFile(descriptorsPath, bson.serialize({ descriptors, kernelOptions }));
-        await fsp.writeFile(modelPath, classifier.serializeModel());
+        await fsPromises.writeFile(descriptorsPath, bson.serialize({
+            descriptors,
+            kernelOptions
+        }));
+        await fsPromises.writeFile(modelPath, classifier.serializeModel());
     } catch (e) {
         console.log(e);
     }
@@ -130,9 +160,11 @@ async function train(letters, SVMOptions, kernelOptions) {
 
     const Xtrain = letters.map((s) => s.descriptor);
     const Ytrain = letters.map((s) => s.label);
+
     const uniqLabels = uniq(Ytrain);
 
     if (uniqLabels.length === 1) {
+        // eslint-disable-next-line no-console
         console.log('training mode: ONE_CLASS');
         SVMOptions = Object.assign({}, SVMOptionsOneClass, SVMOptions, {
             kernel: SVM.KERNEL_TYPES.PRECOMPUTED
@@ -144,6 +176,7 @@ async function train(letters, SVMOptions, kernelOptions) {
     }
 
     let oneClass = SVMOptions.type === SVM.SVM_TYPES.ONE_CLASS;
+
     var classifier = new SVM(SVMOptions);
     let kernel = getKernel(kernelOptions);
 
@@ -151,33 +184,96 @@ async function train(letters, SVMOptions, kernelOptions) {
         .compute(Xtrain)
         .addColumn(0, range(1, Ytrain.length + 1));
     classifier.train(KData, Ytrain);
-    return { classifier, descriptors: Xtrain, oneClass };
+    return {
+        classifier,
+        descriptors: Xtrain,
+        oneClass
+    };
 }
 
+/**
+ * Set custom model file paths for the SVM
+ * @param {Object} paths - Object containing descriptors and model paths
+ * @param {string} paths.descriptors - Path to the descriptors file
+ * @param {string} paths.model - Path to the model file
+ */
+function setModelPaths(paths) {
+    if (!paths || typeof paths !== 'object') {
+        throw new Error('Model paths must be an object with descriptors and model properties');
+    }
+    
+    if (!paths.descriptors || !paths.model) {
+        throw new Error('Both descriptors and model paths are required');
+    }
+    
+    modelPathsConfig = {
+        descriptors: paths.descriptors,
+        model: paths.model
+    };
+}
+
+/**
+ * Get file paths for SVM model files with fallback locations
+ * Checks multiple possible locations in order of priority
+ */
 function getFilePath() {
-  // Priority 1: Vercel production path
-  const vercelPath = '/var/task/.next/static/mrz-models';
-  if (fs.existsSync(path.join(vercelPath, 'ESC-v2.svm.descriptors'))) {
-    return {
-      descriptors: path.join(vercelPath, 'ESC-v2.svm.descriptors'),
-      model: path.join(vercelPath, 'ESC-v2.svm.model')
-    };
-  }
+    // Priority 0: User-defined paths (if set)
+    if (modelPathsConfig) {
+        return modelPathsConfig;
+    }
+    
+    // Output current working directory for debugging
+    console.log('Current working directory:', process.cwd());
+    
+    // Define all possible paths to check
+    const possiblePaths = [
+        // Priority 1: Vercel serverless paths
+        {
+            descriptors: '/var/task/.next/static/mrz-models/ESC-v2.svm.descriptors',
+            model: '/var/task/.next/static/mrz-models/ESC-v2.svm.model'
+        },
+        {
+            descriptors: '/var/task/static/mrz-models/ESC-v2.svm.descriptors',
+            model: '/var/task/static/mrz-models/ESC-v2.svm.model'
+        },
+        // Priority 2: Local Next.js paths
+        {
+            descriptors: path.join(process.cwd(), '.next/static/mrz-models/ESC-v2.svm.descriptors'),
+            model: path.join(process.cwd(), '.next/static/mrz-models/ESC-v2.svm.model')
+        },
+        // Priority 3: Public directory
+        {
+            descriptors: path.join(process.cwd(), 'public/mrz-models/ESC-v2.svm.descriptors'),
+            model: path.join(process.cwd(), 'public/mrz-models/ESC-v2.svm.model')
+        },
+        // Priority 4: Original package paths
+        {
+            descriptors: require.resolve('mrz-scan/models/ESC-v2.svm.descriptors'),
+            model: require.resolve('mrz-scan/models/ESC-v2.svm.model')
+        }
+    ];
 
-  // Priority 2: Local development path
-  const localPublicPath = path.join(process.cwd(), 'public/mrz-models');
-  if (fs.existsSync(path.join(localPublicPath, 'ESC-v2.svm.descriptors'))) {
-    return {
-      descriptors: path.join(localPublicPath, 'ESC-v2.svm.descriptors'),
-      model: path.join(localPublicPath, 'ESC-v2.svm.model')
-    };
-  }
+    // Check each path and return the first one where files exist
+    for (const pathOption of possiblePaths) {
+        try {
+            if (fs.existsSync(pathOption.descriptors) && fs.existsSync(pathOption.model)) {
+                console.log('Found model files at:', pathOption);
+                return pathOption;
+            }
+        } catch (err) {
+            // Ignore errors and try next path
+        }
+    }
 
-  throw new Error('MRZ model files not found in any expected locations');
+    // If no files found, log all attempted paths and use last option (will likely fail)
+    console.error('No model files found in any of these locations:', possiblePaths);
+    return possiblePaths[0];
 }
 
 function getKernel(options) {
-    options = Object.assign({ type: 'linear' }, options);
+    options = Object.assign({
+        type: 'linear'
+    }, options);
     return new Kernel(options.type, options);
 }
 
@@ -189,4 +285,5 @@ module.exports = {
     extractHOG,
     predictImages,
     loadData,
+    setModelPaths, // Export the new function to set custom paths
 };
