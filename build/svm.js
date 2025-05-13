@@ -187,11 +187,20 @@ async function train(letters, SVMOptions, kernelOptions) {
 /**
  * Determines the file paths for the model files.
  * Priority:
- * 1. Use externally provided model paths if set via setModelPaths().
- * 2. Check for production files under /var/task/static/mrz-models.
- * 3. Fallback to local development files in public/mrz-models.
+ * 1. Use environment variables if set
+ * 2. Use externally provided model paths if set via setModelPaths().
+ * 3. Check for production files under /var/task/static/mrz-models.
+ * 4. Fallback to local development files in public/mrz-models.
  */
 function getFilePath() {
+  // NEW: Check for environment variables first
+  if (process.env.MRZ_DESCRIPTORS_PATH && process.env.MRZ_MODEL_PATH) {
+    return {
+      descriptors: process.env.MRZ_DESCRIPTORS_PATH,
+      model: process.env.MRZ_MODEL_PATH
+    };
+  }
+  
   if (
     externalModelPaths &&
     externalModelPaths.descriptors &&
