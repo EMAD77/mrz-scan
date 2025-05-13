@@ -36,8 +36,8 @@ async function mrzOcr(image) {
     }
   }
   const imagesToPredict = rois.map(roi => roi.image);
-  //let predicted = await predictImages(imagesToPredict);
-  let predicted = await predictImages(imagesToPredict, options && options.modelPaths);
+  let predicted = await predictImages(imagesToPredict);
+  //let predicted = await predictImages(imagesToPredict, options && options.modelPaths);
   predicted = predicted.map(p => String.fromCharCode(p));
   predicted.forEach((p, idx) => {
     rois[idx].predicted = p;
