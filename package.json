@@ -27,7 +27,8 @@
   "exports": {
     ".": {
       "require": "./index.js"
-    },
+    }
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/ProjectINT/mrz-scan"
