@@ -193,37 +193,38 @@ async function train(letters, SVMOptions, kernelOptions) {
  * 4. Fallback to local development files in public/mrz-models.
  */
 function getFilePath() {
-  // NEW: Check for environment variables first
+  // 1. Check environment variables first
   if (process.env.MRZ_DESCRIPTORS_PATH && process.env.MRZ_MODEL_PATH) {
     return {
       descriptors: process.env.MRZ_DESCRIPTORS_PATH,
       model: process.env.MRZ_MODEL_PATH
     };
   }
-  
-  if (
-    externalModelPaths &&
-    externalModelPaths.descriptors &&
-    externalModelPaths.model
-  ) {
+
+  // 2. Check externally provided paths
+  if (externalModelPaths?.descriptors && externalModelPaths?.model) {
     return externalModelPaths;
   }
 
-  const prodPath = '/var/task/static/mrz-models';
-  if (fs.existsSync(path.join(prodPath, 'ESC-v2.svm.descriptors'))) {
-    return {
-      descriptors: path.join(prodPath, 'ESC-v2.svm.descriptors'),
-      model: path.join(prodPath, 'ESC-v2.svm.model')
-    };
-  }
+  // 3. Check production path (corrected from static/ to public/)
+  const prodPath = '/var/task/public/mrz-models';
+  try {
+    const descriptorsProd = path.join(prodPath, 'ESC-v2.svm.descriptors');
+    const modelProd = path.join(prodPath, 'ESC-v2.svm.model');
+    if (fs.existsSync(descriptorsProd) {
+      return { descriptors: descriptorsProd, model: modelProd };
+    }
+  } catch (e) {}
 
+  // 4. Local development fallback
   const localPath = path.join(process.cwd(), 'public/mrz-models');
-  if (fs.existsSync(path.join(localPath, 'ESC-v2.svm.descriptors'))) {
-    return {
-      descriptors: path.join(localPath, 'ESC-v2.svm.descriptors'),
-      model: path.join(localPath, 'ESC-v2.svm.model')
-    };
-  }
+  try {
+    const descriptorsLocal = path.join(localPath, 'ESC-v2.svm.descriptors');
+    const modelLocal = path.join(localPath, 'ESC-v2.svm.model');
+    if (fs.existsSync(descriptorsLocal)) {
+      return { descriptors: descriptorsLocal, model: modelLocal };
+    }
+  } catch (e) {}
 
   throw new Error('MRZ model files not found in any expected locations');
 }
