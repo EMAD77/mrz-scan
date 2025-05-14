@@ -193,7 +193,7 @@ async function train(letters, SVMOptions, kernelOptions) {
  * 4. Fallback to local development files in public/mrz-models.
  */
 function getFilePath() {
-  // 1. Check environment variables first
+  // 1. Use environment variables if set
   if (process.env.MRZ_DESCRIPTORS_PATH && process.env.MRZ_MODEL_PATH) {
     return {
       descriptors: process.env.MRZ_DESCRIPTORS_PATH,
@@ -201,20 +201,12 @@ function getFilePath() {
     };
   }
 
-  // 2. Check externally provided paths via setModelPaths()
+  // 2. Use externally provided paths if set via setModelPaths()
   if (externalModelPaths?.descriptors && externalModelPaths?.model) {
     return externalModelPaths;
   }
 
-  // 3a. Check production static path (Vercel deployment):
-  const staticPath = '/var/task/static/mrz-models';
-  const descriptorsStatic = path.join(staticPath, 'ESC-v2.svm.descriptors');
-  const modelStatic = path.join(staticPath, 'ESC-v2.svm.model');
-  if (fs.existsSync(descriptorsStatic)) {
-    return { descriptors: descriptorsStatic, model: modelStatic };
-  }
-
-  // 3b. Check production “public” path (if you happen to use that):
+  // 3. Use production “public” path first
   const prodPath = '/var/task/public/mrz-models';
   const descriptorsProd = path.join(prodPath, 'ESC-v2.svm.descriptors');
   const modelProd = path.join(prodPath, 'ESC-v2.svm.model');
@@ -232,6 +224,7 @@ function getFilePath() {
 
   throw new Error('MRZ model files not found in any expected locations');
 }
+
 
 
 function getKernel(options) {
