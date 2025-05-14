@@ -226,16 +226,6 @@ function getFilePath() {
 }
 
 
-  // 4. Fallback to local development files in public/mrz-models
-  const localPath = path.join(process.cwd(), 'public/mrz-models');
-  const descriptorsLocal = path.join(localPath, 'ESC-v2.svm.descriptors');
-  const modelLocal = path.join(localPath, 'ESC-v2.svm.model');
-  if (fs.existsSync(descriptorsLocal)) {
-    return { descriptors: descriptorsLocal, model: modelLocal };
-  }
-
-  throw new Error('MRZ model files not found in any expected locations');
-}
 
 
 function getKernel(options) {
