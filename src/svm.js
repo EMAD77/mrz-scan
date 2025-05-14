@@ -193,7 +193,7 @@ async function train(letters, SVMOptions, kernelOptions) {
  * 4. Fallback to local development files in public/mrz-models.
  */
 function getFilePath() {
-  // 1. Use environment variables if set
+  // 1. Check environment variables first
   if (process.env.MRZ_DESCRIPTORS_PATH && process.env.MRZ_MODEL_PATH) {
     return {
       descriptors: process.env.MRZ_DESCRIPTORS_PATH,
@@ -201,28 +201,29 @@ function getFilePath() {
     };
   }
 
-  // 2. Use externally provided paths if set via setModelPaths()
+  // 2. Check if an external path has been provided via setModelPaths()
   if (externalModelPaths?.descriptors && externalModelPaths?.model) {
     return externalModelPaths;
   }
 
-  // 3. Use production “public” path first
-  const prodPath = '/var/task/public/mrz-models';
-  const descriptorsProd = path.join(prodPath, 'ESC-v2.svm.descriptors');
-  const modelProd = path.join(prodPath, 'ESC-v2.svm.model');
+  // 3. Try using a production “public” path.
+  // Using path.resolve here ensures that the relative path is resolved against process.cwd() once.
+  const prodPublicPath = path.resolve("public", "mrz-models");
+  const descriptorsProd = path.join(prodPublicPath, "ESC-v2.svm.descriptors");
+  const modelProd = path.join(prodPublicPath, "ESC-v2.svm.model");
   if (fs.existsSync(descriptorsProd)) {
     return { descriptors: descriptorsProd, model: modelProd };
   }
 
-  // 4. Fallback to local development files in public/mrz-models
-  const localPath = path.join(process.cwd(), 'public/mrz-models');
-  const descriptorsLocal = path.join(localPath, 'ESC-v2.svm.descriptors');
-  const modelLocal = path.join(localPath, 'ESC-v2.svm.model');
+  // 4. Fallback to local development (using process.cwd())
+  const localPath = path.join(process.cwd(), "public", "mrz-models");
+  const descriptorsLocal = path.join(localPath, "ESC-v2.svm.descriptors");
+  const modelLocal = path.join(localPath, "ESC-v2.svm.model");
   if (fs.existsSync(descriptorsLocal)) {
     return { descriptors: descriptorsLocal, model: modelLocal };
   }
 
-  throw new Error('MRZ model files not found in any expected locations');
+  throw new Error("MRZ model files not found in any expected locations");
 }
 
 
