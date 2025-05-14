@@ -197,37 +197,42 @@ function getFilePath() {
   if (process.env.MRZ_DESCRIPTORS_PATH && process.env.MRZ_MODEL_PATH) {
     return {
       descriptors: process.env.MRZ_DESCRIPTORS_PATH,
-      model: process.env.MRZ_MODEL_PATH
+      model: process.env.MRZ_MODEL_PATH,
     };
   }
 
-  // 2. Check externally provided paths
+  // 2. Check externally provided paths via setModelPaths()
   if (externalModelPaths?.descriptors && externalModelPaths?.model) {
     return externalModelPaths;
   }
 
-  // 3. Check production path (corrected from static/ to public/)
-  const prodPath = '/var/task/public/mrz-models';
-  try {
-    const descriptorsProd = path.join(prodPath, 'ESC-v2.svm.descriptors');
-    const modelProd = path.join(prodPath, 'ESC-v2.svm.model');
-    if (fs.existsSync(descriptorsProd)) {
-      return { descriptors: descriptorsProd, model: modelProd };
-    }
-  } catch (e) {}
+  // 3a. Check production static path (Vercel deployment):
+  const staticPath = '/var/task/static/mrz-models';
+  const descriptorsStatic = path.join(staticPath, 'ESC-v2.svm.descriptors');
+  const modelStatic = path.join(staticPath, 'ESC-v2.svm.model');
+  if (fs.existsSync(descriptorsStatic)) {
+    return { descriptors: descriptorsStatic, model: modelStatic };
+  }
 
-  // 4. Local development fallback
+  // 3b. Check production “public” path (if you happen to use that):
+  const prodPath = '/var/task/public/mrz-models';
+  const descriptorsProd = path.join(prodPath, 'ESC-v2.svm.descriptors');
+  const modelProd = path.join(prodPath, 'ESC-v2.svm.model');
+  if (fs.existsSync(descriptorsProd)) {
+    return { descriptors: descriptorsProd, model: modelProd };
+  }
+
+  // 4. Fallback to local development files in public/mrz-models
   const localPath = path.join(process.cwd(), 'public/mrz-models');
-  try {
-    const descriptorsLocal = path.join(localPath, 'ESC-v2.svm.descriptors');
-    const modelLocal = path.join(localPath, 'ESC-v2.svm.model');
-    if (fs.existsSync(descriptorsLocal)) {
-      return { descriptors: descriptorsLocal, model: modelLocal };
-    }
-  } catch (e) {}
+  const descriptorsLocal = path.join(localPath, 'ESC-v2.svm.descriptors');
+  const modelLocal = path.join(localPath, 'ESC-v2.svm.model');
+  if (fs.existsSync(descriptorsLocal)) {
+    return { descriptors: descriptorsLocal, model: modelLocal };
+  }
 
   throw new Error('MRZ model files not found in any expected locations');
 }
+
 
 function getKernel(options) {
   options = Object.assign({ type: 'linear' }, options);
