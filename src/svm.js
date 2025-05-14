@@ -227,6 +227,7 @@ function getFilePath() {
 
 
 
+
 function getKernel(options) {
   options = Object.assign({ type: 'linear' }, options);
   return new Kernel(options.type, options);
