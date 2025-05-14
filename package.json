@@ -27,8 +27,9 @@
   "exports": {
     ".": {
       "import": "./index.js",
-      "require": "./index.js"
-    }
+      "require": "./index.js",
+    },
+    "./build/svm.js": "./build/svm.js"
   },
   "repository": {
     "type": "git",
