@@ -211,7 +211,7 @@ function getFilePath() {
   try {
     const descriptorsProd = path.join(prodPath, 'ESC-v2.svm.descriptors');
     const modelProd = path.join(prodPath, 'ESC-v2.svm.model');
-    if (fs.existsSync(descriptorsProd) {
+    if (fs.existsSync(descriptorsProd)) {
       return { descriptors: descriptorsProd, model: modelProd };
     }
   } catch (e) {}
